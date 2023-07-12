@@ -9,6 +9,9 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from bson import ObjectId
 
+from utils.validate_token import validate_token
+from utils.exceptions import NotFoundRecord
+
 router = APIRouter(
     prefix = "/inventory",
     tags=[
@@ -16,7 +19,7 @@ router = APIRouter(
     ],
 )
 
-@router.post("")
+@router.post("",  dependencies=[Depends(validate_token)])
 async def create_inventory(
     create_inventory: CreateInventory,
     database: Annotated[AsyncIOMotorDatabase, Depends(get_db)],
@@ -31,18 +34,17 @@ async def create_inventory(
     )
     return JSONResponse(
             content={"created_inventory": inserted_id.inserted_id},
-            status_code=201
+            status_code = 201
         )
 
 
-
-@router.get("")
+@router.get("",  dependencies=[Depends(validate_token)])
 async def list_inventory(database: Annotated[AsyncIOMotorDatabase, Depends(get_db)]):
     inventory_list = [inventory async for inventory in database.inventory.find({})]
 
     return JSONResponse(
-        content=jsonable_encoder(inventory_list),
-        status_code=200
+        content = jsonable_encoder(inventory_list),
+        status_code = 200
     )
 
 
@@ -53,17 +55,14 @@ async def get_inventory(
 ):
     inventory = await database.inventory.find_one(
         {
-            "_id": inventory_id,
+            "_id" : inventory_id,
         }
     )
 
-    if inventory:
-        return JSONResponse(
-            content=inventory,
-            status_code=200
-        )
-    else:
-        return JSONResponse(
-            content={"message": "El producto no existe"},
-            status_code=404
-        )
+    if not inventory:
+        raise NotFoundRecord(f"Inventory with id {inventory_id} does not exists")
+
+    return JSONResponse(
+        content = inventory,
+        status_code = 200,
+    )
